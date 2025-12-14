@@ -2,6 +2,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import '../services/database_service.dart';
 import '../services/config_service.dart';
 import '../services/logger_service.dart';
@@ -23,6 +24,7 @@ class AppState extends ChangeNotifier {
   String _decryptingDatabase = '';
   int _decryptProgress = 0;
   int _decryptTotal = 0;
+  String? _resolvedSessionDbPath; // 最近定位到的 session.db 路径（无论是否成功连接）
 
   // 全局头像缓存 (username -> avatarUrl)
   Map<String, String> _globalAvatarCache = {};
@@ -37,6 +39,10 @@ class AppState extends ChangeNotifier {
   String get decryptingDatabase => _decryptingDatabase;
   int get decryptProgress => _decryptProgress;
   int get decryptTotal => _decryptTotal;
+  String? get resolvedSessionDbPath => _resolvedSessionDbPath;
+  bool get sessionDbExists =>
+      _resolvedSessionDbPath != null &&
+      File(_resolvedSessionDbPath!).existsSync();
 
   /// 获取解密进度百分比
   double get decryptProgressPercent {
@@ -149,6 +155,7 @@ class AppState extends ChangeNotifier {
       return;
     }
     _isLoading = true;
+    _resolvedSessionDbPath = null;
     notifyListeners();
 
     Exception? lastError;
@@ -239,12 +246,20 @@ class AppState extends ChangeNotifier {
 
       await logger.info('AppState', '配置的数据库路径: $dbPath');
 
+      final manualWxid = await configService.getManualWxid();
+      databaseService.setManualWxid(manualWxid);
+
       // 自动定位 session.db
-      final sessionDbPath = await _locateSessionDb(dbPath);
+      final sessionDbPath = await _locateSessionDb(
+        dbPath,
+        manualWxid: manualWxid,
+      );
       if (sessionDbPath == null) {
+        _resolvedSessionDbPath = null;
         await logger.error('AppState', '未找到session.db数据库文件');
         throw Exception('未找到session.db数据库文件，请检查微信数据库目录是否正确');
       }
+      _resolvedSessionDbPath = sessionDbPath;
 
       await logger.info('AppState', '找到session.db: $sessionDbPath');
       // 已经是实时模式且相同路径/密钥，直接返回
@@ -267,11 +282,36 @@ class AppState extends ChangeNotifier {
   }
 
   /// 定位 session.db 文件（递归搜索子目录）
-  Future<String?> _locateSessionDb(String dbStoragePath) async {
+  Future<String?> _locateSessionDb(
+    String dbStoragePath, {
+    String? manualWxid,
+  }) async {
     try {
       final dbStorageDir = Directory(dbStoragePath);
       if (!await dbStorageDir.exists()) {
         return null;
+      }
+
+      final normalizedWxid = _normalizeWxid(manualWxid);
+      if (normalizedWxid != null && normalizedWxid.isNotEmpty) {
+        final accountDir = await _findAccountDir(dbStorageDir, normalizedWxid);
+        if (accountDir != null) {
+          final dbDir = Directory(p.join(accountDir.path, 'db_storage'));
+          final searchDir = await dbDir.exists() ? dbDir : accountDir;
+          final session = await _locateSessionDb(searchDir.path);
+          if (session != null) {
+            return session;
+          }
+          await logger.warning(
+            'AppState',
+            '在指定账号目录未找到 session.db，改为全局扫描',
+          );
+        } else {
+          await logger.warning(
+            'AppState',
+            '未找到与 wxid=$manualWxid 匹配的账号目录，改为全局扫描',
+          );
+        }
       }
 
       // 递归搜索所有 .db 文件，寻找包含 session 的文件
@@ -336,9 +376,31 @@ class AppState extends ChangeNotifier {
         throw Exception('EchoTrace目录不存在，请先解密数据库');
       }
 
-      final accountDirs = await echoTraceDir.list().where((entity) {
+      var accountDirs = await echoTraceDir.list().where((entity) {
         return entity is Directory;
       }).toList();
+
+      final manualWxid = await configService.getManualWxid();
+      final normalizedManual = _normalizeWxid(manualWxid);
+      if (normalizedManual != null && normalizedManual.isNotEmpty) {
+        final filtered = accountDirs.where((entity) {
+          final name = entity.path.split(Platform.pathSeparator).last;
+          return _normalizeWxid(name) == normalizedManual;
+        }).toList();
+        if (filtered.isNotEmpty) {
+          accountDirs = filtered;
+          await logger.info(
+            'AppState',
+            '根据配置的wxid筛选账号目录，剩余 ${accountDirs.length} 个',
+          );
+        } else {
+          await logger.error(
+            'AppState',
+            '未找到配置的wxid目录: $manualWxid',
+          );
+          throw Exception('未找到配置的wxid目录，请先解密对应账号或重新选择路径');
+        }
+      }
 
       if (accountDirs.isEmpty) {
         await logger.error('AppState', '未找到任何账号目录');
@@ -372,6 +434,7 @@ class AppState extends ChangeNotifier {
             attemptedFiles.add(dbFile.path);
             await logger.info('AppState', '尝试连接数据库: ${dbFile.path}');
             try {
+              _resolvedSessionDbPath = dbFile.path;
               await databaseService.connectDecryptedDatabase(dbFile.path);
               final tables = await databaseService.getAllTableNames();
 
@@ -388,7 +451,7 @@ class AppState extends ChangeNotifier {
                 );
                 return; // 成功找到并连接
               } else {
-                await logger.warning(
+              await logger.warning(
                   'AppState',
                   '数据库 $fileName 不包含SessionTable',
                 );
@@ -408,6 +471,7 @@ class AppState extends ChangeNotifier {
 
           attemptedFiles.add(dbFile.path);
           try {
+            _resolvedSessionDbPath = dbFile.path;
             await databaseService.connectDecryptedDatabase(dbFile.path);
             final tables = await databaseService.getAllTableNames();
 
@@ -479,6 +543,32 @@ class AppState extends ChangeNotifier {
   bool isAvatarCached(String username) {
     final url = _globalAvatarCache[username];
     return url != null && url.isNotEmpty;
+  }
+
+  String? _normalizeWxid(String? value) {
+    if (value == null) return null;
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return null;
+    final legacyMatch =
+        RegExp(r'^(wxid_[a-z0-9]+)(?:_\d+)?$', caseSensitive: false)
+            .firstMatch(trimmed);
+    if (legacyMatch != null) return legacyMatch.group(1)!.toLowerCase();
+    return trimmed.toLowerCase();
+  }
+
+  Future<Directory?> _findAccountDir(
+    Directory root,
+    String normalizedWxid,
+  ) async {
+    await for (final entity in root.list()) {
+      if (entity is! Directory) continue;
+      final name = p.basename(entity.path);
+      final normalizedName = _normalizeWxid(name);
+      if (normalizedName == normalizedWxid) {
+        return entity;
+      }
+    }
+    return null;
   }
 
   /// 批量获取并更新头像缓存

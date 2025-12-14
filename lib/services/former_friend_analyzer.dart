@@ -10,7 +10,7 @@ class FormerFriendResult {
   final int activeDaysCount; // 活跃期内有聊天的天数
   final int activeMessageCount; // 活跃期内的消息总数
   final DateTime? lastMessageDate; // 最后一条消息的日期
-  final int daysSinceActive; // 距离活跃期结束的天数
+  final int daysSinceActive; // 距离最后一次聊天的天数（相对数据库最新消息时间）
   final int messagesAfterActive; // 活跃期后的消息数
   final double afterFrequency; // 活跃期后的聊天频率（消息数/天）
 
@@ -231,17 +231,24 @@ class FormerFriendAnalyzer {
           final lastMessageDate = sortedDates.isNotEmpty
               ? DateTime.parse(sortedDates.last)
               : null;
-          final daysSinceActive = lastMessageDate != null
-              ? lastMessageDate.difference(activeEndDate).inDays
+
+          // 计算距离最后一次聊天的天数（使用数据库最新消息时间作为“现在”）
+          final daysSinceLastMessage = lastMessageDate != null
+              ? latestMessageDate.difference(lastMessageDate).inDays
               : latestMessageDate.difference(activeEndDate).inDays;
+
+          // 计算活跃期之后到最后一条消息之间的天数，用于频率统计
+          final daysAfterActive = lastMessageDate != null
+              ? lastMessageDate.difference(activeEndDate).inDays
+              : 0;
 
           int messagesAfterActive = 0;
           for (final date in afterDates) {
             messagesAfterActive += messagesByDate[date]!['count'] as int;
           }
 
-          final afterFrequency = daysSinceActive > 0
-              ? messagesAfterActive / daysSinceActive
+          final afterFrequency = daysAfterActive > 0
+              ? messagesAfterActive / daysAfterActive
               : 0.0;
 
           bestCandidate = FormerFriendResult(
@@ -253,7 +260,9 @@ class FormerFriendAnalyzer {
             activeDaysCount: activeDaysCount,
             activeMessageCount: activeMessageCount,
             lastMessageDate: lastMessageDate,
-            daysSinceActive: daysSinceActive,
+            daysSinceActive: daysSinceLastMessage < 0
+                ? 0
+                : daysSinceLastMessage,
             messagesAfterActive: messagesAfterActive,
             afterFrequency: afterFrequency,
           );

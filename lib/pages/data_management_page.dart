@@ -96,6 +96,7 @@ class _DataManagementPageState extends State<DataManagementPage>
 
       // 优先使用用户配置的数据库路径
       String? configuredPath = await _configService.getDatabasePath();
+      final manualWxid = await _configService.getManualWxid();
 
       _databaseFiles.clear();
 
@@ -105,7 +106,11 @@ class _DataManagementPageState extends State<DataManagementPage>
       }
 
       // 智能识别路径类型并扫描数据库
-      await _scanDatabasePath(configuredPath, documentsPath);
+      await _scanDatabasePath(
+        configuredPath,
+        documentsPath,
+        manualWxid: manualWxid,
+      );
 
       // 按文件大小排序，小的在前
       _databaseFiles.sort((a, b) => a.fileSize.compareTo(b.fileSize));
@@ -199,8 +204,23 @@ class _DataManagementPageState extends State<DataManagementPage>
     return trimmed;
   }
 
+  String? _normalizeWxid(String? value) {
+    if (value == null) return null;
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return null;
+    final legacyMatch =
+        RegExp(r'^(wxid_[a-zA-Z0-9]+)(?:_\d+)?$', caseSensitive: false)
+            .firstMatch(trimmed);
+    if (legacyMatch != null) return legacyMatch.group(1)!.toLowerCase();
+    return trimmed.toLowerCase();
+  }
+
   /// 智能扫描数据库路径
-  Future<void> _scanDatabasePath(String basePath, String documentsPath) async {
+  Future<void> _scanDatabasePath(
+    String basePath,
+    String documentsPath, {
+    String? manualWxid,
+  }) async {
     final baseDir = Directory(basePath);
     if (!await baseDir.exists()) {
       return;
@@ -208,6 +228,8 @@ class _DataManagementPageState extends State<DataManagementPage>
 
     final pathParts = basePath.split(Platform.pathSeparator);
     final lastPart = pathParts.isNotEmpty ? pathParts.last : '';
+
+    final normalizedManual = _normalizeWxid(manualWxid);
 
     // 判断路径类型并采取不同的扫描策略
     if (lastPart == 'db_storage') {
@@ -217,6 +239,14 @@ class _DataManagementPageState extends State<DataManagementPage>
       if (pathParts.length >= 2) {
         final parentDirName = pathParts[pathParts.length - 2];
         accountName = _cleanAccountDirName(parentDirName);
+      }
+      if (normalizedManual != null &&
+          _normalizeWxid(accountName) != normalizedManual) {
+        await logger.warning(
+          'DataManagementPage',
+          '选择的db_storage账号与配置wxid不匹配，已跳过扫描',
+        );
+        return;
       }
 
       await _scanDbStorageDirectory(baseDir, accountName, documentsPath);
@@ -230,6 +260,10 @@ class _DataManagementPageState extends State<DataManagementPage>
 
         final accountDirName = entity.path.split(Platform.pathSeparator).last;
         final cleanedAccountName = _cleanAccountDirName(accountDirName);
+        if (normalizedManual != null &&
+            _normalizeWxid(cleanedAccountName) != normalizedManual) {
+          continue; // 只扫描指定账号
+        }
         final dbStoragePath =
             '${entity.path}${Platform.pathSeparator}db_storage';
         final dbStorageDir = Directory(dbStoragePath);
@@ -251,7 +285,6 @@ class _DataManagementPageState extends State<DataManagementPage>
 
       // 如果没有找到任何账号目录，尝试使用手动输入的wxid
       if (!foundAnyAccount) {
-        final manualWxid = await _configService.getManualWxid();
         if (manualWxid != null && manualWxid.isNotEmpty) {
           await logger.info(
             'DataManagementPage',
@@ -266,6 +299,12 @@ class _DataManagementPageState extends State<DataManagementPage>
             final dbStorageDir = Directory(dbStoragePath);
 
             if (await dbStorageDir.exists()) {
+              final dirName =
+                  entity.path.split(Platform.pathSeparator).last;
+              if (normalizedManual != null &&
+                  _normalizeWxid(dirName) != normalizedManual) {
+                continue;
+              }
               await logger.info(
                 'DataManagementPage',
                 '使用手动wxid扫描数据库: $manualWxid',
@@ -1221,6 +1260,7 @@ class _DataManagementPageState extends State<DataManagementPage>
 
       // 获取配置的路径
       String? configuredPath = await _configService.getDatabasePath();
+      final manualWxid = await _configService.getManualWxid();
 
       if (configuredPath == null || configuredPath.isEmpty) {
         configuredPath = '$documentsPath${Platform.pathSeparator}xwechat_files';
@@ -1232,7 +1272,11 @@ class _DataManagementPageState extends State<DataManagementPage>
       await _prepareDisplayNameCache();
 
       // 扫描图片文件
-      await _scanImagePath(configuredPath, documentsPath);
+      await _scanImagePath(
+        configuredPath,
+        documentsPath,
+        manualWxid: manualWxid,
+      );
 
       // 按文件大小排序
       _imageFiles.sort((a, b) => a.fileSize.compareTo(b.fileSize));
@@ -1344,7 +1388,11 @@ class _DataManagementPageState extends State<DataManagementPage>
     return hasLeadingSep ? '$sep$rebuilt' : rebuilt;
   }
 
-  Future<void> _scanImagePath(String basePath, String documentsPath) async {
+  Future<void> _scanImagePath(
+    String basePath,
+    String documentsPath, {
+    String? manualWxid,
+  }) async {
     final baseDir = Directory(basePath);
     if (!await baseDir.exists()) {
       await logger.warning('DataManagementPage', '图片扫描：目录不存在 $basePath');
@@ -1353,6 +1401,7 @@ class _DataManagementPageState extends State<DataManagementPage>
 
     final pathParts = basePath.split(Platform.pathSeparator);
     final lastPart = pathParts.isNotEmpty ? pathParts.last : '';
+    final normalizedManual = _normalizeWxid(manualWxid);
 
     await logger.info(
       'DataManagementPage',
@@ -1368,6 +1417,17 @@ class _DataManagementPageState extends State<DataManagementPage>
             .sublist(0, pathParts.length - 1)
             .join(Platform.pathSeparator);
         final accountDir = Directory(accountPath);
+        if (normalizedManual != null &&
+            _normalizeWxid(
+                  accountPath.split(Platform.pathSeparator).last,
+                ) !=
+                normalizedManual) {
+          await logger.warning(
+            'DataManagementPage',
+            '图片扫描：选择的db_storage账号与配置wxid不匹配，已跳过',
+          );
+          return;
+        }
 
         await logger.info(
           'DataManagementPage',
@@ -1393,6 +1453,13 @@ class _DataManagementPageState extends State<DataManagementPage>
         final dbStoragePath =
             '${entity.path}${Platform.pathSeparator}db_storage';
         if (await Directory(dbStoragePath).exists()) {
+          if (normalizedManual != null &&
+              _normalizeWxid(
+                    entity.path.split(Platform.pathSeparator).last,
+                  ) !=
+                  normalizedManual) {
+            continue;
+          }
           accountDirs.add(entity);
         }
       }

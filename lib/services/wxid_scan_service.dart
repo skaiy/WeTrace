@@ -23,6 +23,7 @@ class WxidScanService {
   }) async {
     onProgress?.call('正在从路径扫描微信账号...');
     final roots = await _candidateRoots();
+    final loginTimes = await _loadLoginTimes();
     final bestByWxid = <String, WxidCandidate>{};
 
     for (final root in roots) {
@@ -50,6 +51,8 @@ class WxidScanService {
         } else {
           modified = (await entity.stat()).modified;
         }
+        // 优先使用 login 目录中的登录时间
+        modified = loginTimes[normalized] ?? modified;
         final candidate = WxidCandidate(
           wxid: normalized,
           modified: modified,
@@ -73,12 +76,59 @@ class WxidScanService {
     return candidates;
   }
 
+  /// 从 login 目录读取各账号最近登录时间
+  Future<Map<String, DateTime>> _loadLoginTimes() async {
+    if (!Platform.isWindows) return {};
+    final userProfile = Platform.environment['USERPROFILE'] ?? '';
+    if (userProfile.isEmpty) return {};
+
+    final loginRoot = Directory(
+      p.join(userProfile, 'AppData', 'Roaming', 'Tencent', 'xwechat', 'login'),
+    );
+    if (!await loginRoot.exists()) return {};
+
+    final Map<String, DateTime> result = {};
+    await for (final entity in loginRoot.list()) {
+      if (entity is! Directory) continue;
+      final wxid = _normalizeWxid(p.basename(entity.path));
+      if (wxid == null) continue;
+
+      final latest = await _latestModified(entity);
+      result[wxid] = latest;
+    }
+    return result;
+  }
+
+  Future<DateTime> _latestModified(Directory dir) async {
+    DateTime latest = (await dir.stat()).modified;
+    await for (final entity in dir.list(recursive: true, followLinks: false)) {
+      try {
+        final stat = await entity.stat();
+        if (stat.modified.isAfter(latest)) {
+          latest = stat.modified;
+        }
+      } catch (_) {
+        continue;
+      }
+    }
+    return latest;
+  }
+
   /// 返回优先的 WeChat 目录（xwechat/login 优先，否则 xwechat_files，否则 Documents/WeChat Files）
   Future<String?> findWeChatFilesRoot() async {
-    final roots = await _candidateRoots();
-    for (final root in roots) {
+    final userProfile = Platform.environment['USERPROFILE'] ?? '';
+    if (userProfile.isEmpty) return null;
+
+    // 数据库根目录优先顺序：xwechat_files -> WeChat Files（不使用 xwechat/login）
+    final dbRoots = <String>[
+      p.join(userProfile, 'Documents', 'xwechat_files'),
+      p.join(userProfile, 'Documents', 'WeChat Files'),
+    ];
+
+    for (final root in dbRoots) {
       if (await Directory(root).exists()) return root;
     }
+
     return null;
   }
 

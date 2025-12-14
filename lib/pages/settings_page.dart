@@ -24,7 +24,8 @@ class SettingsPage extends StatefulWidget {
   State<SettingsPage> createState() => _SettingsPageState();
 }
 
-class _SettingsPageState extends State<SettingsPage> {
+class _SettingsPageState extends State<SettingsPage>
+    with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _keyController = TextEditingController();
   final _pathController = TextEditingController();
@@ -34,6 +35,9 @@ class _SettingsPageState extends State<SettingsPage> {
   final _configService = ConfigService();
   late final DecryptService _decryptService;
   final _wxidScanService = WxidScanService();
+  OverlayEntry? _toastEntry;
+  Timer? _toastTimer;
+  AnimationController? _toastController;
 
   final bool _obscureKey = true;
   final bool _obscureImageXorKey = true;
@@ -69,6 +73,9 @@ class _SettingsPageState extends State<SettingsPage> {
     _wxidController.dispose();
     _imageXorKeyController.dispose();
     _imageAesKeyController.dispose();
+    _toastTimer?.cancel();
+    _toastController?.dispose();
+    _toastEntry?.remove();
     _decryptService.dispose();
     super.dispose();
   }
@@ -129,32 +136,38 @@ class _SettingsPageState extends State<SettingsPage> {
         return;
       }
 
-      // 检查是否存在包含 db_storage 的子目录
-      bool foundAccountDir = false;
-      await for (final entity in dir.list()) {
-        if (entity is Directory) {
-          final dbStoragePath =
-              '${entity.path}${Platform.pathSeparator}db_storage';
-          if (await Directory(dbStoragePath).exists()) {
-            foundAccountDir = true;
-            final detected = _extractWxidFromDirName(p.basename(entity.path));
-            if (detected != null) {
-              _applyDetectedWxid(detected, fromPath: entity.path);
-              // 若根目录框为空则填入
-              if (_pathController.text.isEmpty) {
-                _pathController.text = path;
-              }
-            }
-            break;
-          }
-        }
-      }
+      final candidates = await _collectAccountCandidates(path);
 
       // 不隐藏输入框，仅记录状态
       _lastWxidPathChecked = path;
 
-      if (!foundAccountDir) {
+      if (candidates.isEmpty) {
         _showMessage('未在该目录中找到账号目录，请手动输入wxid', false);
+        return;
+      }
+
+      if (candidates.length == 1) {
+        _applyDetectedWxid(candidates.first.wxid, fromPath: candidates.first.path);
+        // 若根目录框为空则填入
+        if (_pathController.text.isEmpty) {
+          _pathController.text = path;
+        }
+        return;
+      }
+
+      final chosen = await _pickWxidCandidate(candidates);
+      if (chosen == null || chosen.isEmpty) {
+        _showMessage('检测到多个账号，请选择其中一个', false);
+        return;
+      }
+
+      final match = candidates.firstWhere(
+        (c) => _normalizeWxid(c.wxid) == _normalizeWxid(chosen),
+        orElse: () => candidates.first,
+      );
+      _applyDetectedWxid(match.wxid, fromPath: match.path);
+      if (_pathController.text.isEmpty) {
+        _pathController.text = path;
       }
     } catch (e) {
       // 保持输入框显示
@@ -180,6 +193,50 @@ class _SettingsPageState extends State<SettingsPage> {
     return trimmed;
   }
 
+  String? _normalizeWxid(String value) {
+    final extracted = _extractWxidFromDirName(value);
+    return extracted?.toLowerCase();
+  }
+
+  /// 收集包含 db_storage 的账号目录候选
+  Future<List<WxidCandidate>> _collectAccountCandidates(String rootPath) async {
+    final rootDir = Directory(rootPath);
+    if (!await rootDir.exists()) return [];
+
+    final candidates = <WxidCandidate>[];
+
+    await for (final entity in rootDir.list()) {
+      if (entity is! Directory) continue;
+      final wxid = _extractWxidFromDirName(p.basename(entity.path));
+      if (wxid == null) continue;
+
+      final dbStorage = Directory(
+        '${entity.path}${Platform.pathSeparator}db_storage',
+      );
+      final keyInfo = File(p.join(entity.path, 'key_info.dat'));
+
+      if (!await dbStorage.exists() && !await keyInfo.exists()) continue;
+
+      DateTime modified;
+      if (await keyInfo.exists()) {
+        modified = (await keyInfo.stat()).modified;
+      } else {
+        modified = (await dbStorage.stat()).modified;
+      }
+
+      candidates.add(
+        WxidCandidate(
+          wxid: wxid,
+          modified: modified,
+          path: entity.path,
+        ),
+      );
+    }
+
+    candidates.sort((a, b) => b.modified.compareTo(a.modified));
+    return candidates;
+  }
+
   Future<void> _selectDatabasePath() async {
     try {
       String? selectedDirectory = await FilePicker.platform.getDirectoryPath(
@@ -201,8 +258,6 @@ class _SettingsPageState extends State<SettingsPage> {
   /// 自动检测数据库目录
   Future<void> _autoDetectDatabasePath() async {
     try {
-      _showMessage('正在自动检测数据库目录...', true);
-
       final possiblePaths = <String>{};
 
       final regPath = await _wxidScanService.findWeChatFilesRoot();
@@ -227,23 +282,18 @@ class _SettingsPageState extends State<SettingsPage> {
       for (final path in possiblePaths) {
         final dir = Directory(path);
         if (await dir.exists()) {
-          // 检查是否包含账号目录（包含 db_storage 子文件夹）
-          await for (final entity in dir.list()) {
-            if (entity is Directory) {
-              final dbStoragePath =
-                  '${entity.path}${Platform.pathSeparator}db_storage';
-              final dbStorageDir = Directory(dbStoragePath);
-
-              if (await dbStorageDir.exists()) {
-                // 找到了包含 db_storage 的目录
-                setState(() {
-                  _pathController.text = path;
-                });
-                await _checkAccountDirectory(path);
-                _showMessage('自动检测成功：$path', true);
-                return;
-              }
-            }
+          final rootName = p.basename(path).toLowerCase();
+          if (rootName != 'xwechat_files' && rootName != 'wechat files') {
+            continue; // 避免把登录信息目录当作数据库根目录
+          }
+          final candidates = await _collectAccountCandidates(path);
+          if (candidates.isNotEmpty) {
+            setState(() {
+              _pathController.text = path;
+            });
+            await _checkAccountDirectory(path);
+            _showMessage('自动检测成功：$path', true);
+            return;
           }
         }
       }
@@ -344,26 +394,41 @@ class _SettingsPageState extends State<SettingsPage> {
         return;
       }
 
-      // 在根目录下查找包含 db_storage 的账号目录
-      Directory? dbStorageDir;
-      await for (final entity in rootDir.list()) {
-        if (entity is Directory) {
-          final possibleDbStorage = Directory(
-            '${entity.path}${Platform.pathSeparator}db_storage',
-          );
-          if (await possibleDbStorage.exists()) {
-            dbStorageDir = possibleDbStorage;
-            break;
-          }
-        }
-      }
-
-      if (dbStorageDir == null) {
+      final accountCandidates = await _collectAccountCandidates(path);
+      if (accountCandidates.isEmpty) {
         _showMessage(
           '未找到 db_storage 目录\n请确认选择了正确的微信数据库根目录（如 xwechat_files）',
           false,
         );
         return;
+      }
+
+      Directory? dbStorageDir;
+      if (accountCandidates.length == 1) {
+        dbStorageDir = Directory(
+          p.join(accountCandidates.first.path, 'db_storage'),
+        );
+      } else {
+        final wxid = _wxidController.text.trim();
+        final normalizedWxid = _normalizeWxid(wxid);
+        if (normalizedWxid == null || normalizedWxid.isEmpty) {
+          _showMessage('检测到多个账号，请先在配置中选择一个wxid', false);
+          return;
+        }
+
+        final match = accountCandidates.cast<WxidCandidate?>().firstWhere(
+          (c) => _normalizeWxid(c!.wxid) == normalizedWxid,
+          orElse: () => null,
+        );
+
+        if (match == null) {
+          _showMessage('未找到与当前wxid匹配的账号目录，请重新选择', false);
+          return;
+        }
+
+        dbStorageDir = Directory(
+          p.join(match.path, 'db_storage'),
+        );
       }
 
       // 在 db_storage 目录中查找 .db 文件
@@ -501,13 +566,128 @@ class _SettingsPageState extends State<SettingsPage> {
       _isSuccess = success;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: success ? Colors.green : Colors.red,
-        duration: const Duration(seconds: 3),
-      ),
+    _toastTimer?.cancel();
+    _toastController?.dispose();
+    _toastController = null;
+    _toastEntry?.remove();
+    _toastEntry = null;
+
+    final overlay = Overlay.of(context);
+
+    _toastController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+      reverseDuration: const Duration(milliseconds: 160),
     );
+    final curved = CurvedAnimation(
+      parent: _toastController!,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+
+    _toastEntry = OverlayEntry(
+      builder: (context) {
+        final theme = Theme.of(context).colorScheme;
+        final Color tone = success ? theme.primary : theme.error;
+        final Color surface = theme.surface;
+        final Color bg = Color.lerp(surface, tone, 0.16) ?? surface;
+        final Color textColor =
+            Color.lerp(tone, Colors.black, 0.1) ?? tone;
+        return Positioned(
+          left: 0,
+          right: 0,
+          bottom: 28,
+          child: SafeArea(
+            child: Center(
+              child: FadeTransition(
+                opacity: curved,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 0.25),
+                    end: Offset.zero,
+                  ).animate(curved),
+                  child: Material(
+                    color: Colors.transparent,
+                      child: Container(
+                        constraints: const BoxConstraints(maxWidth: 520),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          color: bg,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: tone.withOpacity(0.28)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.07),
+                              blurRadius: 18,
+                              offset: const Offset(0, 11),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Icon(
+                              success
+                                  ? Icons.check_circle_rounded
+                                  : Icons.error_rounded,
+                              color: textColor,
+                            ),
+                            const SizedBox(width: 12),
+                            Flexible(
+                              child: Text(
+                                message,
+                                style: TextStyle(
+                                  color: textColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              onPressed: _hideToast,
+                              visualDensity: VisualDensity.compact,
+                              style: IconButton.styleFrom(
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                padding: const EdgeInsets.all(4),
+                              ),
+                              icon: Icon(
+                                Icons.close_rounded,
+                                size: 18,
+                                color: textColor.withOpacity(0.7),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      );
+
+    overlay.insert(_toastEntry!);
+    _toastController!.forward();
+    _toastTimer = Timer(const Duration(seconds: 4), _hideToast);
+  }
+
+  void _hideToast() {
+    _toastTimer?.cancel();
+    _toastTimer = null;
+    if (_toastController == null || _toastEntry == null) return;
+
+    _toastController!.reverse().whenComplete(() {
+      _toastEntry?.remove();
+      _toastEntry = null;
+      _toastController?.dispose();
+      _toastController = null;
+    });
   }
 
   void _updateScanProgress(String message, {bool success = true}) {

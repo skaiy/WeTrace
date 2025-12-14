@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
+import 'dart:io';
 import '../providers/app_state.dart';
 import '../models/chat_session.dart';
 import '../models/message.dart';
@@ -818,9 +819,13 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
+    final hasError = appState.errorMessage != null;
     final isConnecting = appState.isLoading ||
         _isAutoConnecting ||
-        !appState.databaseService.isConnected;
+        (!appState.databaseService.isConnected && !hasError);
+    final showErrorOverlay = !appState.isLoading &&
+        !appState.databaseService.isConnected &&
+        hasError;
     if (!isConnecting &&
         !_isLoadingSessions &&
         _sessions.isEmpty &&
@@ -1248,7 +1253,18 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
             duration: const Duration(milliseconds: 240),
             switchInCurve: Curves.easeOut,
             switchOutCurve: Curves.easeIn,
-            child: isConnecting
+            child: showErrorOverlay
+                ? Container(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    child: Center(
+                      child: _buildErrorOverlay(
+                        context,
+                        appState,
+                        appState.errorMessage ?? '未能连接数据库',
+                      ),
+                    ),
+                  )
+                : isConnecting
                 ? Container(
                     color: Colors.white.withValues(alpha: 0.9),
                     child: Center(
@@ -1307,6 +1323,129 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
           ],
         );
       },
+    );
+  }
+
+  Widget _buildErrorOverlay(
+    BuildContext context,
+    AppState appState,
+    String message,
+  ) {
+    final theme = Theme.of(context);
+    final lower = message.toLowerCase();
+    bool isMissingDb = lower.contains('未找到') ||
+        lower.contains('不存在') ||
+        lower.contains('no such file') ||
+        lower.contains('not found');
+
+    final resolvedPath = appState.resolvedSessionDbPath;
+    if (resolvedPath != null) {
+      try {
+        if (!File(resolvedPath).existsSync()) {
+          isMissingDb = true;
+        }
+      } catch (_) {}
+    }
+
+    final hint = isMissingDb
+        ? '未找到对应账号的数据库文件，请先在「数据管理」页面解密当前选择的 wxid。'
+        : '请检查数据库解密状态和密钥配置，或前往数据管理页面查看解密状态。';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: theme.colorScheme.error.withValues(alpha: 0.12),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.error.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.error_outline,
+              size: 36,
+              color: theme.colorScheme.error,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            isMissingDb ? '未找到数据库文件' : '无法连接数据库',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: theme.colorScheme.error,
+              letterSpacing: 0.1,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            hint,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
+          ),
+          const SizedBox(height: 6),
+          if (isMissingDb && resolvedPath != null)
+            Text(
+              '路径: $resolvedPath',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
+              ),
+            )
+          else
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+              ),
+            ),
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              ElevatedButton(
+                onPressed: () =>
+                    context.read<AppState>().setCurrentPage('data_management'),
+                style: ElevatedButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                ),
+                child: const Text('前往数据管理'),
+              ),
+              OutlinedButton(
+                onPressed: () =>
+                    context.read<AppState>().setCurrentPage('settings'),
+                style: OutlinedButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                  side: BorderSide(
+                    color: theme.colorScheme.outline.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: const Text('重新配置'),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 

@@ -570,7 +570,22 @@ class Message {
         caseSensitive: false,
       );
       final match = pattern.firstMatch(xml);
-      return match?.group(1) ?? '';
+      if (match == null) return '';
+
+      final rawValue = int.tryParse(match.group(1) ?? '');
+      if (rawValue == null) return '';
+
+      // 微信语音/视频时长通常以毫秒存储，偶尔会以秒存储（小值）
+      final isMilliseconds = rawValue > 1000;
+      final seconds = isMilliseconds
+          ? rawValue / 1000.0
+          : rawValue.toDouble();
+
+      // 尽量显示简洁的秒数：整数直接展示，带小数的一位小数
+      if ((seconds - seconds.round()).abs() < 0.05) {
+        return seconds.round().toString();
+      }
+      return seconds.toStringAsFixed(1);
     } catch (e) {
       return '';
     }
