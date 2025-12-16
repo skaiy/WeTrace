@@ -47,7 +47,7 @@ class LoggerService {
         },
       );
       final logDir = Directory(
-        '${tempDir.path}${Platform.pathSeparator}echotrace_logs',
+        '${tempDir.path}${Platform.pathSeparator}WeTrace_logs',
       );
 
       if (!await logDir.exists()) {

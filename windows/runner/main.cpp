@@ -28,7 +28,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
       consoleAttached = true;
     }
     if (consoleAttached) {
-      printf("EchoTrace Windows runner detected CLI flags, launching in console mode...\n");
+      printf("WeTrace Windows runner detected CLI flags, launching in console mode...\n");
       fflush(stdout);
     }
 
@@ -66,7 +66,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(1280, 720);
-  if (!window.Create(L"echotrace", origin, size)) {
+  if (!window.Create(L"WeTrace", origin, size)) {
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);

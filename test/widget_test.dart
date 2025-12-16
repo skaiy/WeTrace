@@ -7,14 +7,14 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:echotrace/main.dart';
+import 'package:WeTrace/main.dart';
 
 void main() {
-  testWidgets('EchoTrace app smoke test', (WidgetTester tester) async {
+  testWidgets('WeTrace app smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const EchoTraceApp());
+    await tester.pumpWidget(const WeTraceApp());
 
-    // Verify that the app starts with EchoTrace text.
-    expect(find.text('EchoTrace'), findsWidgets);
+    // Verify that the app starts with WeTrace text.
+    expect(find.text('WeTrace'), findsWidgets);
   });
 }

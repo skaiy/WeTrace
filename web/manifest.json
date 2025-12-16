@@ -1,6 +1,6 @@
 {
-    "name": "echotrace",
-    "short_name": "echotrace",
+    "name": "WeTrace",
+    "short_name": "WeTrace",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

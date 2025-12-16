@@ -135,16 +135,16 @@ class _DataManagementPageState extends State<DataManagementPage>
       await logger.info('DataManagementPage', '开始清理重命名的旧文件（.old.* 后缀）');
       int cleanedCount = 0;
 
-      // 扫描 EchoTrace 目录下所有的账号文件夹
-      final echoTraceDir = Directory(
-        '$documentsPath${Platform.pathSeparator}EchoTrace',
+      // 扫描 WeTrace 目录下所有的账号文件夹
+      final WeTraceDir = Directory(
+        '$documentsPath${Platform.pathSeparator}WeTrace',
       );
-      if (!await echoTraceDir.exists()) {
-        await logger.info('DataManagementPage', 'EchoTrace 目录不存在，跳过清理');
+      if (!await WeTraceDir.exists()) {
+        await logger.info('DataManagementPage', 'WeTrace 目录不存在，跳过清理');
         return;
       }
 
-      await for (final accountEntity in echoTraceDir.list()) {
+      await for (final accountEntity in WeTraceDir.list()) {
         if (accountEntity is! Directory) continue;
 
         final accountDirName = accountEntity.path
@@ -341,7 +341,7 @@ class _DataManagementPageState extends State<DataManagementPage>
 
       // 检查是否已经解密
       final ourWorkDir = Directory(
-        '$documentsPath${Platform.pathSeparator}EchoTrace',
+        '$documentsPath${Platform.pathSeparator}WeTrace',
       );
       final decryptedFileName = '${fileName.split('.').first}.db';
       final decryptedFilePath =
@@ -1583,7 +1583,7 @@ class _DataManagementPageState extends State<DataManagementPage>
 
             // 计算解密后的路径（不检查是否存在，加快扫描速度）
             final outputDir = Directory(
-              '$documentsPath${Platform.pathSeparator}EchoTrace${Platform.pathSeparator}Images',
+              '$documentsPath${Platform.pathSeparator}WeTrace${Platform.pathSeparator}Images',
             );
             final decryptedPath = '${outputDir.path}$outputRelativePath'.replaceAll(
               '.dat',

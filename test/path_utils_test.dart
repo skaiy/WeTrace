@@ -1,24 +1,24 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:echotrace/utils/path_utils.dart';
+import 'package:WeTrace/utils/path_utils.dart';
 
 void main() {
   group('PathUtils', () {
     test('normalizeDatabasePath - 处理中文路径', () {
-      final path = r'D:\Documents\文档\EchoTrace\session.db';
+      final path = r'D:\Documents\文档\WeTrace\session.db';
       final normalized = PathUtils.normalizeDatabasePath(path);
 
       expect(normalized, contains('文档'));
-      expect(normalized, contains('EchoTrace'));
+      expect(normalized, contains('WeTrace'));
       expect(normalized.startsWith('D:'), isTrue);
     });
 
     test('normalizeDatabasePath - 处理空格路径', () {
       final path =
-          r'D:\Documents\OneDrive - My Cloud Disk\EchoTrace\session.db';
+          r'D:\Documents\OneDrive - My Cloud Disk\WeTrace\session.db';
       final normalized = PathUtils.normalizeDatabasePath(path);
 
       expect(normalized, contains('OneDrive - My Cloud Disk'));
-      expect(normalized, contains('EchoTrace'));
+      expect(normalized, contains('WeTrace'));
     });
 
     test('normalizeDatabasePath - 处理中文和空格混合路径', () {
@@ -31,7 +31,7 @@ void main() {
     });
 
     test('normalizeDatabasePath - 统一路径分隔符', () {
-      final path = r'D:/Documents/EchoTrace/session.db';
+      final path = r'D:/Documents/WeTrace/session.db';
       final normalized = PathUtils.normalizeDatabasePath(path);
 
       // Windows 应该使用反斜杠
@@ -40,7 +40,7 @@ void main() {
     });
 
     test('normalizeDatabasePath - 移除长路径前缀', () {
-      final path = r'\\?\D:\Documents\EchoTrace\session.db';
+      final path = r'\\?\D:\Documents\WeTrace\session.db';
       final normalized = PathUtils.normalizeDatabasePath(path);
 
       // 应该移除 \\?\ 前缀
@@ -49,7 +49,7 @@ void main() {
     });
 
     test('normalizeDatabasePath - 盘符大写', () {
-      final path = r'd:\documents\echotrace\session.db';
+      final path = r'd:\documents\WeTrace\session.db';
       final normalized = PathUtils.normalizeDatabasePath(path);
 
       // 盘符应该大写
@@ -57,60 +57,60 @@ void main() {
     });
 
     test('hasSpecialCharacters - 检测中文', () {
-      expect(PathUtils.hasSpecialCharacters(r'D:\文档\EchoTrace'), isTrue);
+      expect(PathUtils.hasSpecialCharacters(r'D:\文档\WeTrace'), isTrue);
       expect(
-        PathUtils.hasSpecialCharacters(r'D:\Documents\EchoTrace'),
+        PathUtils.hasSpecialCharacters(r'D:\Documents\WeTrace'),
         isFalse,
       );
     });
 
     test('hasSpecialCharacters - 检测空格', () {
       expect(
-        PathUtils.hasSpecialCharacters(r'D:\My Documents\EchoTrace'),
+        PathUtils.hasSpecialCharacters(r'D:\My Documents\WeTrace'),
         isTrue,
       );
       expect(
-        PathUtils.hasSpecialCharacters(r'D:\Documents\EchoTrace'),
+        PathUtils.hasSpecialCharacters(r'D:\Documents\WeTrace'),
         isFalse,
       );
     });
 
     test('join - 安全拼接路径', () {
-      final joined = PathUtils.join(r'D:\Documents', 'EchoTrace', 'session.db');
+      final joined = PathUtils.join(r'D:\Documents', 'WeTrace', 'session.db');
 
       expect(joined, contains('Documents'));
-      expect(joined, contains('EchoTrace'));
+      expect(joined, contains('WeTrace'));
       expect(joined, contains('session.db'));
       expect(joined, contains(r'\'));
     });
 
     test('join - 处理中文路径拼接', () {
-      final joined = PathUtils.join(r'D:\文档', 'EchoTrace', 'session.db');
+      final joined = PathUtils.join(r'D:\文档', 'WeTrace', 'session.db');
 
       expect(joined, contains('文档'));
-      expect(joined, contains('EchoTrace'));
+      expect(joined, contains('WeTrace'));
       expect(joined, contains('session.db'));
     });
 
     test('basename - 获取文件名', () {
-      final filename = PathUtils.basename(r'D:\Documents\EchoTrace\session.db');
+      final filename = PathUtils.basename(r'D:\Documents\WeTrace\session.db');
       expect(filename, equals('session.db'));
     });
 
     test('dirname - 获取目录路径', () {
-      final dir = PathUtils.dirname(r'D:\Documents\EchoTrace\session.db');
-      expect(dir, contains('EchoTrace'));
+      final dir = PathUtils.dirname(r'D:\Documents\WeTrace\session.db');
+      expect(dir, contains('WeTrace'));
       expect(dir, isNot(contains('session.db')));
     });
 
     test('extension - 获取扩展名', () {
-      final ext = PathUtils.extension(r'D:\Documents\EchoTrace\session.db');
+      final ext = PathUtils.extension(r'D:\Documents\WeTrace\session.db');
       expect(ext, equals('.db'));
     });
 
     test('replaceExtension - 替换扩展名', () {
       final newPath = PathUtils.replaceExtension(
-        r'D:\Documents\EchoTrace\image.dat',
+        r'D:\Documents\WeTrace\image.dat',
         '.jpg',
       );
       expect(newPath, endsWith('.jpg'));
@@ -125,7 +125,7 @@ void main() {
     });
 
     test('escapeForLog - 转义特殊字符', () {
-      final escaped = PathUtils.escapeForLog(r'D:\Documents\EchoTrace');
+      final escaped = PathUtils.escapeForLog(r'D:\Documents\WeTrace');
       expect(escaped, contains(r'\\'));
     });
   });

@@ -3423,9 +3423,9 @@ class _AnnualReportDisplayPageState extends State<AnnualReportDisplayPage> {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final yearText = widget.year != null ? '${widget.year}年' : '全部';
 
-      // 创建专门的导出文件夹：EchoTrace/年度报告_YYYY_timestamp
+      // 创建专门的导出文件夹：WeTrace/年度报告_YYYY_timestamp
       final exportDirName = '年度报告_${yearText}_$timestamp';
-      final exportDir = Directory('${directory.path}/EchoTrace/$exportDirName');
+      final exportDir = Directory('${directory.path}/WeTrace/$exportDirName');
 
       if (!await exportDir.exists()) {
         await exportDir.create(recursive: true);

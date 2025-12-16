@@ -4,8 +4,8 @@ import (
 	"context"
 	"io"
 
-	"echotrace/go_decrypt/internal/decrypt/windows"
-	"echotrace/go_decrypt/internal/errors"
+	"WeTrace/go_decrypt/internal/decrypt/windows"
+	"WeTrace/go_decrypt/internal/errors"
 )
 
 // Decryptor 定义数据库解密的接口

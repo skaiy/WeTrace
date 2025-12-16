@@ -1,4 +1,4 @@
-package com.example.echotrace
+package com.example.WeTrace
 
 import io.flutter.embedding.android.FlutterActivity
 

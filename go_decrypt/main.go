@@ -10,8 +10,8 @@ import (
 	"os"
 	"unsafe"
 
-	"echotrace/go_decrypt/internal/decrypt/windows"
-	"echotrace/go_decrypt/internal/unlock"
+	"WeTrace/go_decrypt/internal/decrypt/windows"
+	"WeTrace/go_decrypt/internal/unlock"
 )
 
 // DecryptResult 解密结果

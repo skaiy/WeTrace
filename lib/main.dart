@@ -14,11 +14,11 @@ Future<void> main(List<String> args) async {
     exit(cliExitCode);
   }
 
-  runApp(const EchoTraceApp());
+  runApp(const WeTraceApp());
 }
 
-class EchoTraceApp extends StatelessWidget {
-  const EchoTraceApp({super.key});
+class WeTraceApp extends StatelessWidget {
+  const WeTraceApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +30,7 @@ class EchoTraceApp extends StatelessWidget {
         return appState;
       },
       child: MaterialApp(
-        title: 'EchoTrace - 微信数据库查看器',
+        title: 'WeTrace - 微信数据库查看器',
         debugShowCheckedModeBanner: false,
         theme: _buildLightTheme(),
         themeMode: ThemeMode.light,

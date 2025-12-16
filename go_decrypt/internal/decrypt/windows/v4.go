@@ -8,8 +8,8 @@ import (
 	"io"
 	"os"
 
-	"echotrace/go_decrypt/internal/decrypt/common"
-	"echotrace/go_decrypt/internal/errors"
+	"WeTrace/go_decrypt/internal/decrypt/common"
+	"WeTrace/go_decrypt/internal/errors"
 
 	"golang.org/x/crypto/pbkdf2"
 )

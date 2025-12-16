@@ -31,7 +31,7 @@ jobs:
         run: |
           $tag = "${{ github.ref_name }}"
           $src = "build/windows/x64/runner/Release"
-          $zip = "echotrace-windows-$tag.zip"
+          $zip = "WeTrace-windows-$tag.zip"
           if (!(Test-Path $src)) { dir build/windows -Recurse; throw "build output not found" }
           if (Test-Path $zip) { Remove-Item $zip -Force }
           Compress-Archive -Path "$src/*" -DestinationPath $zip -Force
@@ -49,7 +49,7 @@ jobs:
           $out = Get-ChildItem -Recurse -Filter "*.msix" | Select-Object -First 1
           if (!$out) { throw "msix not found" }
 
-          $name = "echotrace-windows-$tag.msix"
+          $name = "WeTrace-windows-$tag.msix"
           if (Test-Path $name) { Remove-Item $name -Force }
           Move-Item $out.FullName $name
 

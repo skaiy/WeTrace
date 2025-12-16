@@ -1,4 +1,4 @@
-module echotrace/go_decrypt
+module WeTrace/go_decrypt
 
 go 1.24.0
 

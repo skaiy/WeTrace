@@ -18,7 +18,7 @@ class WelcomePage extends StatelessWidget {
 
               // 标题
               Text(
-                'EchoTrace',
+                'WeTrace',
                 style: Theme.of(context).textTheme.displayLarge?.copyWith(
                   fontSize: 64,
                   fontWeight: FontWeight.bold,

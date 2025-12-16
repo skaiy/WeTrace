@@ -100,7 +100,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Text(
-                    'EchoTrace',
+                    'WeTrace',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(

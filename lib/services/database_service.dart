@@ -3460,15 +3460,15 @@ class DatabaseService {
     for (int attempt = 0; attempt < retryCount; attempt++) {
       try {
         final documentsDir = await getApplicationDocumentsDirectory();
-        final echoTraceDir = Directory(
-          '${documentsDir.path}${Platform.pathSeparator}EchoTrace',
+        final WeTraceDir = Directory(
+          '${documentsDir.path}${Platform.pathSeparator}WeTrace',
         );
 
-        if (!await echoTraceDir.exists()) {
+        if (!await WeTraceDir.exists()) {
           if (attempt == 0) {
             await logger.warning(
               'DatabaseService',
-              'EchoTrace目录不存在: ${echoTraceDir.path}',
+              'WeTrace目录不存在: ${WeTraceDir.path}',
             );
           }
           if (attempt < retryCount - 1) {
@@ -3479,7 +3479,7 @@ class DatabaseService {
         }
 
         // 扫描所有账号目录（不限制必须以 wxid_ 开头）
-        final accountDirs = await echoTraceDir.list().where((entity) {
+        final accountDirs = await WeTraceDir.list().where((entity) {
           return entity is Directory;
         }).toList();
 
@@ -3601,13 +3601,13 @@ class DatabaseService {
       }
     }
 
-    // 兜底：扫描 EchoTrace 目录
+    // 兜底：扫描 WeTrace 目录
     final documentsDir = await getApplicationDocumentsDirectory();
-    final echoTracePath = PathUtils.join(documentsDir.path, 'EchoTrace');
-    final echoTraceDir = Directory(echoTracePath);
-    if (!await echoTraceDir.exists()) return messageDbs;
+    final WeTracePath = PathUtils.join(documentsDir.path, 'WeTrace');
+    final WeTraceDir = Directory(WeTracePath);
+    if (!await WeTraceDir.exists()) return messageDbs;
 
-    final wxidDirs = await echoTraceDir
+    final wxidDirs = await WeTraceDir
         .list()
         .where((e) => e is Directory)
         .toList();
@@ -3683,12 +3683,12 @@ class DatabaseService {
   String? _extractWxidFromPath(String path) {
     final parts = path.split(Platform.pathSeparator);
 
-    // 策略1: 从 EchoTrace 目录提取（解密后的路径）
-    // 例如: Documents/EchoTrace/wxid_xxx_8602/session.db -> wxid_xxx
-    //      Documents/EchoTrace/123/session.db -> 123
-    final echoTraceIdx = parts.lastIndexWhere((p) => p == 'EchoTrace');
-    if (echoTraceIdx != -1 && echoTraceIdx + 1 < parts.length) {
-      return _cleanAccountDirName(parts[echoTraceIdx + 1]);
+    // 策略1: 从 WeTrace 目录提取（解密后的路径）
+    // 例如: Documents/WeTrace/wxid_xxx_8602/session.db -> wxid_xxx
+    //      Documents/WeTrace/123/session.db -> 123
+    final WeTraceIdx = parts.lastIndexWhere((p) => p == 'WeTrace');
+    if (WeTraceIdx != -1 && WeTraceIdx + 1 < parts.length) {
+      return _cleanAccountDirName(parts[WeTraceIdx + 1]);
     }
 
     // 策略2: 从 db_storage 的父目录提取（原始微信数据库路径）
@@ -3712,11 +3712,11 @@ class DatabaseService {
   Directory? _findWxidDirFromPath(String path) {
     final parts = path.split(Platform.pathSeparator);
 
-    // 策略1: 如果路径包含 EchoTrace，查找 EchoTrace 下的账号目录
-    final echoTraceIdx = parts.lastIndexWhere((p) => p == 'EchoTrace');
-    if (echoTraceIdx != -1 && echoTraceIdx + 1 < parts.length) {
+    // 策略1: 如果路径包含 WeTrace，查找 WeTrace 下的账号目录
+    final WeTraceIdx = parts.lastIndexWhere((p) => p == 'WeTrace');
+    if (WeTraceIdx != -1 && WeTraceIdx + 1 < parts.length) {
       final accountDirPath = parts
-          .sublist(0, echoTraceIdx + 2)
+          .sublist(0, WeTraceIdx + 2)
           .join(Platform.pathSeparator);
       return Directory(accountDirPath);
     }

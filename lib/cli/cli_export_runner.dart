@@ -26,7 +26,7 @@ class CliExportRunner {
     // 初始化 CLI 本地日志文件，方便无控制台输出时排查
     final logPath = PathUtils.join(
       Directory.systemTemp.path,
-      'echotrace_cli.log',
+      'WeTrace_cli.log',
     );
     _logFile = File(logPath);
     _log('CLI 参数: ${args.join(' ')}, 日志: $logPath');
@@ -54,7 +54,7 @@ class CliExportRunner {
     }
 
     // 进入 CLI 模式的显式提示，便于在无日志时确认程序已启动
-    _log('EchoTrace CLI 模式已启动，正在初始化...');
+    _log('WeTrace CLI 模式已启动，正在初始化...');
 
     try {
       _setupSignalHandlers();
@@ -63,7 +63,7 @@ class CliExportRunner {
       await logger.initialize();
       final config = ConfigService();
       await config.saveDatabaseMode('backup');
-      _log('EchoTrace 导出开始...');
+      _log('WeTrace 导出开始...');
       _log(
         '解析结果 -> 目录: ${options.exportDir}, 格式: ${options.format}, 全部时间: ${options.useAllTime}, '
         '开始: ${options.start}, 结束: ${options.end}',
@@ -271,9 +271,9 @@ class CliExportRunner {
   }
 
   void _printUsage() {
-    stdout.writeln('EchoTrace 命令行导出 (仅 Windows)');
-    stdout.writeln('用法: echotrace.exe -e <导出目录> [--format json|html|excel] [--start YYYY-MM-DD] [--end YYYY-MM-DD] [--all]');
-    stdout.writeln('示例: echotrace.exe -e C:\\\\Exports --format html --all');
+    stdout.writeln('WeTrace 命令行导出 (仅 Windows)');
+    stdout.writeln('用法: WeTrace.exe -e <导出目录> [--format json|html|excel] [--start YYYY-MM-DD] [--end YYYY-MM-DD] [--all]');
+    stdout.writeln('示例: WeTrace.exe -e C:\\\\Exports --format html --all');
   }
 
   static String _sanitizeFileName(String input) {

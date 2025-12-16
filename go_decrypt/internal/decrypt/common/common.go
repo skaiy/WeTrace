@@ -11,7 +11,7 @@ import (
 	"io"
 	"os"
 
-	"echotrace/go_decrypt/internal/errors"
+	"WeTrace/go_decrypt/internal/errors"
 )
 
 const (

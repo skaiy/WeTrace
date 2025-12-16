@@ -368,15 +368,15 @@ class AppState extends ChangeNotifier {
       final documentsPath = documentsDir.path;
 
       // 查找所有账号目录（不限制必须以 wxid_ 开头）
-      final echoTraceDir = Directory(
-        '$documentsPath${Platform.pathSeparator}EchoTrace',
+      final WeTraceDir = Directory(
+        '$documentsPath${Platform.pathSeparator}WeTrace',
       );
-      if (!await echoTraceDir.exists()) {
-        await logger.error('AppState', 'EchoTrace目录不存在: ${echoTraceDir.path}');
-        throw Exception('EchoTrace目录不存在，请先解密数据库');
+      if (!await WeTraceDir.exists()) {
+        await logger.error('AppState', 'WeTrace目录不存在: ${WeTraceDir.path}');
+        throw Exception('WeTrace目录不存在，请先解密数据库');
       }
 
-      var accountDirs = await echoTraceDir.list().where((entity) {
+      var accountDirs = await WeTraceDir.list().where((entity) {
         return entity is Directory;
       }).toList();
 
